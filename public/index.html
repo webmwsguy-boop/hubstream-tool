@@ -6,25 +6,46 @@
         body { font-family: Arial; background: #f4f4f9; text-align: center; padding: 50px; }
         input { padding: 10px; width: 300px; }
         button { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
+        .link-box { margin-top: 20px; word-break: break-all; background: white; padding: 20px; border-radius: 8px; display: inline-block; }
     </style>
 </head>
 <body>
     <h2>HubStream Download Extractor</h2>
     <input type="text" id="url" placeholder="Movie URL yahan dalein">
     <button onclick="getLink()">Get Link</button>
-    <div id="output" style="margin-top: 20px;"></div>
+    <div id="output" class="link-box">Yahan link aayega...</div>
 
     <script>
         async function getLink() {
             const url = document.getElementById('url').value;
-            document.getElementById('output').innerText = "Processing... Bot link nikal raha hai (10-15 sec wait karein)";
-            const res = await fetch(`/api/get-link?url=${encodeURIComponent(url)}`);
-            const data = await res.json();
-            if(data.success) {
-                document.getElementById('output').innerHTML = `<a href="${data.data}" target="_blank">Download Link Yahan Hai</a>`;
-            } else {
-                document.getElementById('output').innerText = "Error: " + data.error;
+            const output = document.getElementById('output');
+            
+            output.innerHTML = "Processing... Bot link nikal raha hai (15-20 sec wait karein)";
+            
+            try {
+                const res = await fetch(`/api/get-link?url=${encodeURIComponent(url)}`);
+                const data = await res.json();
+                
+                if(data.success) {
+                    // referrerpolicy="no-referrer" add kiya hai taaki 403 error na aaye
+                    let linkHtml = `<a href="${data.data}" target="_blank" referrerpolicy="no-referrer" download style="color: blue; font-weight: bold; font-size: 18px;">Download Link Yahan Hai (Click Karein)</a>`;
+                    
+                    // Copy karne ka option bhi de rahe hain
+                    linkHtml += `<br><br><textarea style="width: 300px; height: 80px;">${data.data}</textarea>`;
+                    linkHtml += `<br><br><button onclick="copyLink('${data.data}')">Copy Link</button>`;
+                    
+                    output.innerHTML = linkHtml;
+                } else {
+                    output.innerText = "Error: " + data.error;
+                }
+            } catch (e) {
+                output.innerText = "Fetch Error: " + e;
             }
+        }
+
+        function copyLink(link) {
+            navigator.clipboard.writeText(link);
+            alert('Link copy ho gaya! Ab naye tab mein paste karein.');
         }
     </script>
 </body>

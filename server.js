@@ -14,7 +14,6 @@ app.get('/api/get-link', async (req, res) => {
 
     let browser;
     try {
-        // Stealth aur Chromium launch karna
         browser = await puppeteer.launch({
             args: chromium.args,
             defaultViewport: chromium.defaultViewport,
@@ -25,7 +24,6 @@ app.get('/api/get-link', async (req, res) => {
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
         
-        // Page par jana aur Cloudflare challenge ko wait karna
         await page.goto(targetUrl, { waitUntil: 'networkidle2', timeout: 60000 });
 
         // Ad layer block karna
@@ -35,45 +33,41 @@ app.get('/api/get-link', async (req, res) => {
         });
 
         // Get Video button ka wait karna (max 30 sec)
-        await page.waitForSelector('.downloader-button', { visible: true, timeout: 30000 });
+        await page.waitForSelector('button.downloader-button', { visible: true, timeout: 30000 });
 
         // Invisible layer dobara hata dena
         await page.evaluate(() => {
             document.querySelectorAll('div[style*="position:fixed;inset:0px"]').forEach(el => el.remove());
         });
 
-        const downloadLinkPromise = new Promise((resolve) => {
-            // 1. API Response se link pakadna
-            page.on('response', async (response) => {
-                if (response.request().resourceType() === 'fetch' || response.request().resourceType() === 'xhr') {
-                    try {
-                        const text = await response.text();
-                        if (text.includes('.mkv') || text.includes('.mp4') || text.includes('hubstream') || text.includes('http')) {
-                            resolve(text);
-                        }
-                    } catch (e) {}
-                }
-            });
-
-            // 2. Agar button click se page redirect ho jaye
-            page.on('framenavigated', frame => {
-                const url = frame.url();
-                if (url !== targetUrl && (url.includes('hubstream') || url.includes('.mkv') || url.includes('.mp4'))) {
-                    resolve(url);
-                }
-            });
+        // Button par JavaScript ke through click karna (ad layer se bachne ke liye)
+        await page.evaluate(() => {
+            const btn = document.querySelector('button.downloader-button');
+            if (btn) btn.click();
         });
 
-        // Button par click karna
-        await page.click('.downloader-button');
+        console.log('Bot: Get Video par click ho gaya, Download link ka wait ho raha hai...');
 
-        // Link ka wait karna (max 20 sec)
-        const linkData = await Promise.race([
-            downloadLinkPromise,
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout: Link nahi mila')), 20000))
-        ]);
+        // Ab wait karenge ki button change ho kar <a> tag mein convert ho jaye
+        await page.waitForFunction(() => {
+            const linkElement = document.querySelector('a.downloader-button');
+            // Check karenge ki wo element exist karta hai aur usme http wala link hai ya nahi
+            return linkElement && linkElement.href && linkElement.href.startsWith('http');
+        }, { timeout: 20000 });
 
-        res.json({ success: true, data: linkData });
+        // Sahi link ko extract karna
+        const finalLink = await page.evaluate(() => {
+            const linkElement = document.querySelector('a.downloader-button');
+            return linkElement ? linkElement.href : null;
+        });
+
+        if (finalLink) {
+            console.log('Bot: Sahi link mil gaya! -> ' + finalLink);
+            res.json({ success: true, data: finalLink });
+        } else {
+            res.status(500).json({ success: false, error: 'Link extract nahi ho paya' });
+        }
+
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     } finally {

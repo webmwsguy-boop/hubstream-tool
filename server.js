@@ -11,7 +11,6 @@ app.get('/api/get-link', async (req, res) => {
 
     let browser;
     try {
-        // Sparticuz Chromium launch karna
         browser = await puppeteer.launch({
             args: chromium.args,
             defaultViewport: chromium.defaultViewport,

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>HubStream Tool</title>
+    <style>
+        body { font-family: Arial; background: #f4f4f9; text-align: center; padding: 50px; }
+        input { padding: 10px; width: 300px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h2>HubStream Download Extractor</h2>
+    <input type="text" id="url" placeholder="Movie URL yahan dalein">
+    <button onclick="getLink()">Get Link</button>
+    <div id="output" style="margin-top: 20px;"></div>
+
+    <script>
+        async function getLink() {
+            const url = document.getElementById('url').value;
+            document.getElementById('output').innerText = "Processing... Bot link nikal raha hai (10-15 sec wait karein)";
+            const res = await fetch(`/api/get-link?url=${encodeURIComponent(url)}`);
+            const data = await res.json();
+            if(data.success) {
+                document.getElementById('output').innerHTML = `<a href="${data.data}" target="_blank">Download Link Yahan Hai</a>`;
+            } else {
+                document.getElementById('output').innerText = "Error: " + data.error;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,6 +1,9 @@
 const express = require('express');
-const puppeteer = require('puppeteer-core');
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const chromium = require('@sparticuz/chromium');
+
+puppeteer.use(StealthPlugin());
 
 const app = express();
 app.use(express.static('public'));
@@ -11,6 +14,7 @@ app.get('/api/get-link', async (req, res) => {
 
     let browser;
     try {
+        // Stealth aur Chromium launch karna
         browser = await puppeteer.launch({
             args: chromium.args,
             defaultViewport: chromium.defaultViewport,
@@ -21,6 +25,7 @@ app.get('/api/get-link', async (req, res) => {
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
         
+        // Page par jana aur Cloudflare challenge ko wait karna
         await page.goto(targetUrl, { waitUntil: 'networkidle2', timeout: 60000 });
 
         // Ad layer block karna
@@ -29,25 +34,43 @@ app.get('/api/get-link', async (req, res) => {
             document.querySelectorAll('div[style*="position:fixed;inset:0px"]').forEach(el => el.remove());
         });
 
+        // Get Video button ka wait karna (max 30 sec)
+        await page.waitForSelector('.downloader-button', { visible: true, timeout: 30000 });
+
+        // Invisible layer dobara hata dena
+        await page.evaluate(() => {
+            document.querySelectorAll('div[style*="position:fixed;inset:0px"]').forEach(el => el.remove());
+        });
+
         const downloadLinkPromise = new Promise((resolve) => {
+            // 1. API Response se link pakadna
             page.on('response', async (response) => {
                 if (response.request().resourceType() === 'fetch' || response.request().resourceType() === 'xhr') {
                     try {
                         const text = await response.text();
-                        if (text.includes('.mkv') || text.includes('.mp4') || text.includes('hubstream')) {
+                        if (text.includes('.mkv') || text.includes('.mp4') || text.includes('hubstream') || text.includes('http')) {
                             resolve(text);
                         }
                     } catch (e) {}
                 }
             });
+
+            // 2. Agar button click se page redirect ho jaye
+            page.on('framenavigated', frame => {
+                const url = frame.url();
+                if (url !== targetUrl && (url.includes('hubstream') || url.includes('.mkv') || url.includes('.mp4'))) {
+                    resolve(url);
+                }
+            });
         });
 
-        // Get Video par auto click
+        // Button par click karna
         await page.click('.downloader-button');
 
+        // Link ka wait karna (max 20 sec)
         const linkData = await Promise.race([
             downloadLinkPromise,
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 15000))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout: Link nahi mila')), 20000))
         ]);
 
         res.json({ success: true, data: linkData });
